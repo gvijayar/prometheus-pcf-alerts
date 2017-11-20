@@ -2,12 +2,11 @@
 - type: replace
   path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
   value: |
-        ALERT Pivotal_CFCellsWithSufficientMemoryTooLow
-          IF (sum(avg(firehose_value_metric_rep_capacity_remaining_memory) by (bosh_job_ip) >bool 4096)) < 4
+        ALERT Pivotal_ApplicationCapacity_4GbUnit
+          IF (sum(floor(avg(firehose_value_metric_rep_capacity_remaining_memory) by (bosh_job_ip) /4096))) < 5
           FOR 1m
           LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` only has {{$value}} cells with at least 4 GB of available ram in the last 1m.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` overall available memory too low: {{$value}} cells left"}
-
+          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has remaining capacity for {{$value}} 4Gb applications.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` overall application capacity running low: only {{$value}} 4Gb applications can be deployed"}
 
 - type: replace
   path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
