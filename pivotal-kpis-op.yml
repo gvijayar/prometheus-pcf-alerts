@@ -1,111 +1,125 @@
 ---
 - type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_ApplicationCapacity_4GbUnit
-          IF (sum(floor(avg(firehose_value_metric_rep_capacity_remaining_memory) by (bosh_job_ip) /4096))) < 5
-          FOR 1m
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has remaining capacity for {{$value}} 4Gb applications.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` overall application capacity running low: only {{$value}} 4Gb applications can be deployed"}
+  path: /instance_groups/name=prometheus/jobs/name=prometheus2/properties/prometheus/custom_rules?/-
+  value:
+    name: PCF-KPIs
+    rules:
+      - alert: Pivotal_ApplicationCapacity_4GbUnit
+        expr: (sum(floor(avg(firehose_value_metric_rep_capacity_remaining_memory) by (bosh_job_ip) /4096))) < 5
+        for: 1m
+        labels:
+          service: "cf"
+          severity: "warning"
+        annotations:
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has remaining capacity for {{$value}} 4Gb applications."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` overall application capacity running low: only {{$value}} 4Gb applications can be deployed"
 
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFFirehoseDroppedMessages
-          IF (sum(avg(firehose_counter_event_doppler_server_doppler_shed_envelopes_total) by(bosh_deployment, bosh_job_name, bosh_job_ip)) - sum(avg(firehose_counter_event_doppler_server_doppler_shed_envelopes_total offset 5m) by(bosh_deployment, bosh_job_name, bosh_job_ip))) > 10000
-          FOR 10s
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has dropped {{$value}} firehose messages in the last 5 minutes.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` firehose is dropping messages: {{$value}} messages dropped"}
+      - alert: Pivotal_CFFirehoseDroppedMessages
+        expr: (sum(avg(firehose_counter_event_doppler_server_doppler_shed_envelopes_total) by(bosh_deployment, bosh_job_name, bosh_job_ip)) - sum(avg(firehose_counter_event_doppler_server_doppler_shed_envelopes_total offset 5m) by(bosh_deployment, bosh_job_name, bosh_job_ip))) > 10000
+        for: 10s
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has dropped {{$value}} firehose messages in the last 5 minutes."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` firehose is dropping messages: {{$value}} messages dropped"
 
+      - alert: Pivotal_CFFirehoseNoRecentMessages
+        expr: (sum(avg(firehose_counter_event_doppler_server_listeners_total_received_message_count_total) by(bosh_deployment, bosh_job_name, bosh_job_ip)) - sum(avg(firehose_counter_event_doppler_server_listeners_total_received_message_count_total offset 1m) by(bosh_deployment, bosh_job_name, bosh_job_ip))) == 0
+        for: 10s
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has reported zero firehose messages in the last 1 minute to Prometheus."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Prometheus has not received messages from firhose in the last minute"
 
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFFirehoseNoRecentMessages
-          IF (sum(avg(firehose_counter_event_doppler_server_listeners_total_received_message_count_total) by(bosh_deployment, bosh_job_name, bosh_job_ip)) - sum(avg(firehose_counter_event_doppler_server_listeners_total_received_message_count_total offset 1m) by(bosh_deployment, bosh_job_name, bosh_job_ip))) == 0
-          FOR 10s
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has reported zero firehose messages in the last 1 minute to Prometheus.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Prometheus has not received messages from firhose in the last minute"}
+      - alert: Pivotal_CFFirehoseMissingMetrics
+        expr:  absent(firehose_counter_event_doppler_server_listeners_total_received_message_count_total)
+        for: 10s
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has not reported critical metrics from firehose recently."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Prometheus has not received critical status messages from firehose recently."
 
+      - alert: Pivotal_CFDiegoActiveLocks
+        expr:  max(firehose_value_metric_locket_active_locks) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip) > 4
+        for: 60s
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting more than 4 Diego active locks."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Total count of how many locks the system components are holding is higher than expected."
 
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFFirehoseMissingMetrics
-          IF  absent(firehose_counter_event_doppler_server_listeners_total_received_message_count_total)
-          FOR 10s
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has not reported critical metrics from firehose recently.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Prometheus has not received critical status messages from firehose recently."}
+      - alert: Pivotal_CFCellUnhealthy
+        expr:  max(firehose_value_metric_rep_unhealthy_cell) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip) > 0
+        for: 60s
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting an unhealthy Diego cell."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` There are at least one unhealthy Diego Cells."
 
+      - alert: Pivotal_CFRepBulkSynchDurationTooHigh
+        expr:  max(firehose_value_metric_rep_rep_bulk_sync_duration) BY (environment, bosh_deployment, bosh_job_ip) / 1000000000 > 10
+        for: 15m
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting Sync times that are too high with the BBS."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Sync times that are too high with the BBS."
 
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFDiegoActiveLocks
-          IF  max(firehose_value_metric_locket_active_locks) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip) > 4
-          FOR 60s
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting more than 4 Diego active locks.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Total count of how many locks the system components are holding is higher than expected."}
+      - alert: Pivotal_CFLocketAcivePresences
+        expr: abs(count(count(count_over_time(firehose_value_metric_garden_linux_num_cpus[15m])) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip)) - max(max_over_time(firehose_value_metric_locket_active_presences[1m]))) > 1
+        for: 60s
+        labels: 
+          service: "cf"
+          severity: "warning"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting a difference between the number of the Diego cells presented and the actual Diego cells."
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` There is a difference between the number of actual and presented Diego cells."
 
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFCellUnhealthy
-          IF  max(firehose_value_metric_rep_unhealthy_cell) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip) > 0
-          FOR 60s
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting an unhealthy Diego cell.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` There are at least one unhealthy Diego Cells."}
+      - alert: Pivotal_BOSHJobUnhealthy
+        expr: max(bosh_job_healthy{bosh_job_name!~"^compilation.*"}) BY (environment, bosh_name, bosh_deployment, bosh_job_name, bosh_job_index) < 1
+        for: 2m
+        labels: 
+          service: "bosh-job" 
+          severity: "warning"
+        annotations: 
+          description: "BOSH Job `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` is being reported unhealthy"
+          summary: "BOSH Job `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` is unhealthy"
 
+      - alert: Pivotal_RouteEmitterSyncSlow
+        expr: max (firehose_value_metric_route_emitter_route_emitter_sync_duration)/1000000000 > 10
+        for: 2m
+        labels: 
+          service: "route_emitter"
+          severity: "critical"
+        annotations: 
+          description: "Route Emitter Sync too High `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` value is {{ $value }}" 
+          summary: "Route Emitter Sync too High `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}`"
 
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFRepBulkSynchDurationTooHigh
-          IF  max(firehose_value_metric_rep_rep_bulk_sync_duration) BY (environment, bosh_deployment, bosh_job_ip) / 1000000000 > 10
-          FOR 15m
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting Sync times that are too high with the BBS.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Sync times that are too high with the BBS."}
+      - alert: Pivotal_BOSHUserCPUHigh
+        expr: avg_over_time(bosh_job_cpu_user{bosh_job_name!~"^compilation.*"}[5m]) > 95
+        for: 2m
+        labels: 
+          service: "bosh-job"
+          severity: "warning"
+        annotations: 
+          description: "CPU high on `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}`"
+          summary: "CPU high on `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}`  value is {{ $value }} %"
 
-
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-        ALERT Pivotal_CFLocketAcivePresences
-          IF abs(count(count(count_over_time(firehose_value_metric_garden_linux_num_cpus[15m])) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip)) - max(max_over_time(firehose_value_metric_locket_active_presences[1m]))) > 1
-          FOR 60s
-          LABELS {service="cf", severity="warning"}
-          ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting a difference between the number of the Diego cells presented and the actual Diego cells.", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` There is a difference between the number of actual and presented Diego cells."}
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-         ALERT Pivotal_BOSHJobUnhealthy
-           IF max(bosh_job_healthy{bosh_job_name!~"^compilation.*"}) BY (environment, bosh_name, bosh_deployment, bosh_job_name, bosh_job_index) < 1
-           FOR 2m
-           LABELS {service="bosh-job", severity="warning"}
-           ANNOTATIONS {description="BOSH Job `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` is being reported unhealthy", summary="BOSH Job `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` is unhealthy"}
-
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-         ALERT Pivotal_RouteEmitterSyncSlow
-           IF max (firehose_value_metric_route_emitter_route_emitter_sync_duration)/1000000000 > 10
-           FOR 2m
-           LABELS {service="route_emitter", severity="critical"}
-           ANNOTATIONS {description="Route Emitter Sync too High `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` value is {{ $value }}", summary="Route Emitter Sync too High `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}` "}
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-         ALERT Pivotal_BOSHUserCPUHigh
-           IF avg_over_time(bosh_job_cpu_user{bosh_job_name!~"^compilation.*"}[5m]) > 95
-           FOR 2m
-           LABELS {service="bosh-job", severity="warning"}
-           ANNOTATIONS {description="CPU high on `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}`", summary="CPU high on `{{$labels.environment}}/{{$labels.bosh_name}}/{{$labels.bosh_deployment}}/{{$labels.bosh_job_name}}/{{$labels.bosh_job_index}}`  value is {{ $value }} %"}
-
-- type: replace
-  path: /instance_groups/name=prometheus/jobs/name=prometheus/properties/prometheus/custom_rules?/-
-  value: |
-         ALERT Pivotal_DiegoLowDisk
-           IF firehose_value_metric_rep_capacity_remaining_disk/1024 < 4
-           FOR 2m
-           LABELS {service="cf", severity="critical"}
-           ANNOTATIONS {description="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has low disk condition. The value is {{$value}}", summary="CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has low disk condition. The value is {{$value}}"}
+      - alert: Pivotal_DiegoLowDisk
+        expr: firehose_value_metric_rep_capacity_remaining_disk/1024 < 4
+        for: 2m
+        labels: 
+          service: "cf"
+          severity: "critical"
+        annotations: 
+          description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has low disk condition. The value is {{$value}}"
+          summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` has low disk condition. The value is {{$value}}"
