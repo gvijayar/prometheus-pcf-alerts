@@ -74,7 +74,7 @@
           description: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` is reporting Sync times that are too high with the BBS."
           summary: "CF `{{$labels.environment}}/{{$labels.bosh_deployment}}` Sync times that are too high with the BBS."
 
-      - alert: Pivotal_CFLocketAcivePresences
+      - alert: Pivotal_CFLocketActivePresences
         expr: abs(count(count(count_over_time(firehose_value_metric_garden_linux_num_cpus[15m])) BY (environment, bosh_deployment, bosh_job_name, bosh_job_ip)) - max(max_over_time(firehose_value_metric_locket_active_presences[1m]))) > 1
         for: 60s
         labels: 
